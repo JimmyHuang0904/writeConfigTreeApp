@@ -1,0 +1,13 @@
+requires:
+{
+    api:
+    {
+        airVantage/le_avdata.api
+    }
+}
+
+sources:
+{
+    writeConfigTree.c
+}
+

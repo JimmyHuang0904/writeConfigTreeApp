@@ -1,0 +1,19 @@
+executables:
+{
+    writeConfigTree = ( writeConfigTree )
+}
+
+processes:
+{
+    run:
+    {
+        ( writeConfigTree )
+    }
+}
+
+start: manual
+
+bindings:
+{
+    writeConfigTree.writeConfigTree.le_avdata -> avcService.le_avdata
+}

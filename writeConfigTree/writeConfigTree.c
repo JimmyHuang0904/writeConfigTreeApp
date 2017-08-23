@@ -1,66 +1,27 @@
 #include "legato.h"
 #include "interfaces.h"
 
-//-------------------------------------------------------------------------------------------------
-/**
- * Declare asset data path
- */
-//-------------------------------------------------------------------------------------------------
-
-/* variables */
-// string - room name
-#define ROOM_NAME_VAR_RES   "/home1/room1/roomName"
-
-// bool - status of air conditioning in the room ON or OFF
-#define IS_AC_ON_VAR_RES   "/home1/room1/AC/IsACOn"
-
-// float - room temperature reading
-#define ROOM_TEMP_READING_VAR_RES "/home1/room1/thermostat/roomTemp"
+#define APP_RUNNING_DURATION_SEC 110        //run this app for 10min
+#define ARRAY_SIZE 512
 
 /* settings*/
 
 //float - target temperature setting
-#define TARGET_TEMP_SET_RES "/home1/room1/thermostat/targetTemp"
-
-/* commands */
-
-// commands to turn off the air conditioning
-#define AC_CMD_TURN_OFF_RES              "/home1/room1/AC/ACControl"
+#define URL_SET "/trafficLight/url"
 
 //-------------------------------------------------------------------------------------------------
 /**
  * AVC related variable and update timer
  */
 //-------------------------------------------------------------------------------------------------
-// reference timer for app session
+// reference timer for app sessionTimer
 le_timer_Ref_t sessionTimer;
 //reference to AVC event handler
 le_avdata_SessionStateHandlerRef_t  avcEventHandlerRef = NULL;
 //reference to AVC Session handler
 le_avdata_RequestSessionObjRef_t sessionRef = NULL;
-//reference to temperature update timer
-le_timer_Ref_t tempUpdateTimerRef = NULL;
 //reference to push asset data timer
 le_timer_Ref_t serverUpdateTimerRef = NULL;
-
-//-------------------------------------------------------------------------------------------------
-/**
- * Counters recording the number of times certain hardwares are accessed.
- */
-//-------------------------------------------------------------------------------------------------
-static int WriteTempSettingCounter = 0;
-static int ExecACCmd = 0;
-
-//-------------------------------------------------------------------------------------------------
-/**
- * Target temperature related declarations.
- */
-//-------------------------------------------------------------------------------------------------
-static char* RoomNameVar;
-static double RoomTempVar = 0.0;
-static int TargetTempSet = 0;
-static bool IsACOn = false;
-
 
 //-------------------------------------------------------------------------------------------------
 /**
@@ -68,13 +29,24 @@ static bool IsACOn = false;
  */
 //-------------------------------------------------------------------------------------------------
 
+static void writeConfig
+(
+    char * url
+)
+{
+    le_cfg_IteratorRef_t iteratorRef;
+    // Set default Url to the global variable Url
+    iteratorRef = le_cfg_CreateWriteTxn("trafficLight:/");
+    le_cfg_SetString(iteratorRef, "url", url);
+    le_cfg_CommitTxn(iteratorRef);
+}
 //-------------------------------------------------------------------------------------------------
 /**
  * Setting data handler.
  * This function is returned whenever AirVantage performs a read or write on the target temperature
  */
 //-------------------------------------------------------------------------------------------------
-static void TempSettingHandler
+static void UrlSettingHandler
 (
     const char* path,
     le_avdata_AccessType_t accessType,
@@ -82,95 +54,24 @@ static void TempSettingHandler
     void* contextPtr
 )
 {
-    WriteTempSettingCounter++;
+    // WriteUrlSettingCounter++;
 
-    LE_INFO("------------------- Server writes temperature setting [%d] times ------------",
-                WriteTempSettingCounter);
-    int targetTempLatest = 0;
-    le_result_t resultGetInt = le_avdata_GetInt(TARGET_TEMP_SET_RES, &targetTempLatest);
-    if (LE_FAULT == resultGetInt)
+    // LE_INFO("------------------- Server writes temperature setting [%d] times ------------",
+    //             WriteUrlSettingCounter);
+    char targetTempLatest[ARRAY_SIZE] = "";
+
+    le_result_t resultGetString = le_avdata_GetString(URL_SET, targetTempLatest, ARRAY_SIZE);
+    if (LE_FAULT == resultGetString)
     {
-        LE_ERROR("Error in getting latest TARGET_TEMP_SET_RES");
+        LE_ERROR("Error in getting latest URL_SET");
     }
-    // if targetTempLatest from server is not the same as the current TargetTempSet
-    // ,then set to the latest one
-
-    if (targetTempLatest != TargetTempSet){
-        TargetTempSet=targetTempLatest;
-        le_result_t resultSetTargetTemp = le_avdata_SetInt(TARGET_TEMP_SET_RES, TargetTempSet);
-        if (LE_FAULT == resultSetTargetTemp)
-        {
-            LE_ERROR("Error in getting latest TARGET_TEMP_SET_RES");
-        }
-        LE_INFO("Setting Write target temperature request: %s is %d C°",
-                                            "TARGET_TEMP_SET_RES", TargetTempSet);
-    }
-    // turn on the air conditioning if room temperature is higher than target temperature
-    if (TargetTempSet < RoomTempVar)
+    le_result_t resultSetTargetTemp = le_avdata_SetString(URL_SET, targetTempLatest);
+    if (LE_FAULT == resultSetTargetTemp)
     {
-        le_result_t resultSetAC = le_avdata_SetBool(IS_AC_ON_VAR_RES, true);
-        if (LE_FAULT == resultSetAC)
-        {
-            LE_ERROR("Error in setting IS_AC_ON_VAR_RES");
-        }
-        LE_INFO("Setting Write turning on AC variable request: %s", "IS_AC_ON_VAR_RES");
-    }else{
-        le_result_t resultSetAC = le_avdata_SetBool(IS_AC_ON_VAR_RES, true);
-        if (LE_FAULT == resultSetAC)
-        {
-            LE_ERROR("Error in setting IS_AC_ON_VAR_RES");
-        }
-        LE_INFO("Setting Write turning on AC variable request: %s", "IS_AC_ON_VAR_RES");
-    }
-}
-
-
-//-------------------------------------------------------------------------------------------------
-/**
- * Command data handler.
- * This function is returned whenever AirVantage performs an execute on the AC turn off command
- */
-//-------------------------------------------------------------------------------------------------
-static void ExecACCtrlCmd
-(
-    const char* path,
-    le_avdata_AccessType_t accessType,
-    le_avdata_ArgumentListRef_t argumentList,
-    void* contextPtr
-)
-{
-    ExecACCmd++;
-    LE_INFO("------------------- Exec AC Commnad [%d] times ------------",
-                ExecACCmd);
-    le_result_t setACVAR = le_avdata_SetBool(IS_AC_ON_VAR_RES,false);
-    if (LE_FAULT == setACVAR)
-    {
-        LE_ERROR("Error in setting IS_AC_ON_VAR_RES");
-    }
-    LE_INFO("Command exec turning off AC variable request: %s", "IS_AC_ON_VAR_RES");
-}
-
-double ConvergeTemperature(double currentTemperature, int targetTemperature)
-{
-    double fTargetTemp = (double) targetTemperature;
-
-    if (currentTemperature == fTargetTemp)
-    {
-        return fTargetTemp;
+        LE_ERROR("Error in getting latest URL_SET");
     }
 
-    double fStep = 0.2;
-
-    if (currentTemperature > fTargetTemp)
-    {
-        currentTemperature -= fStep;
-    }
-    else
-    {
-        currentTemperature += fStep;
-    }
-
-    return currentTemperature;
+    writeConfig(targetTempLatest);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -181,7 +82,6 @@ double ConvergeTemperature(double currentTemperature, int targetTemperature)
 
 //-------------------------------------------------------------------------------------------------
 /**
- * Push ack callback handler
  * This function is called whenever push has been performed successfully in AirVantage server
  */
 //-------------------------------------------------------------------------------------------------
@@ -194,10 +94,10 @@ static void PushCallbackHandler
     switch (status)
     {
         case LE_AVDATA_PUSH_SUCCESS:
-            LE_INFO("Legato assetdata push successfully");
+            LE_INFO("Legato writeConfigTree push successfully");
             break;
         case LE_AVDATA_PUSH_FAILED:
-            LE_INFO("Legato assetdata push failed");
+            LE_INFO("Legato writeConfigTree push failed");
             break;
     }
 }
@@ -213,29 +113,11 @@ void PushResources(le_timer_Ref_t  timerRef)
     // if session is still open, push the values
     if (NULL != avcEventHandlerRef)
     {
-        le_result_t resultPushRoomName;
-        resultPushRoomName = le_avdata_Push(ROOM_NAME_VAR_RES, PushCallbackHandler, NULL);
-        if (LE_FAULT == resultPushRoomName)
-        {
-            LE_ERROR("Error pushing ROOM_NAME_VAR_RES");
-        }
-        le_result_t resultPushACStatus;
-        resultPushACStatus = le_avdata_Push(IS_AC_ON_VAR_RES, PushCallbackHandler, NULL);
-        if (LE_FAULT == resultPushACStatus)
-        {
-            LE_ERROR("Error pushing IS_AC_ON_VAR_RES");
-        }
-        le_result_t resultPushRoomTemp;
-        resultPushRoomTemp = le_avdata_Push(ROOM_TEMP_READING_VAR_RES, PushCallbackHandler, NULL);
-        if (LE_FAULT == resultPushRoomTemp)
-        {
-            LE_ERROR("Error pushing ROOM_TEMP_READING_VAR_RES");
-        }
         le_result_t resultPushTargetTemp;
-        resultPushTargetTemp = le_avdata_Push(TARGET_TEMP_SET_RES, PushCallbackHandler, NULL);
+        resultPushTargetTemp = le_avdata_Push(URL_SET, PushCallbackHandler, NULL);
         if (LE_FAULT == resultPushTargetTemp)
         {
-            LE_ERROR("Error pushing TARGET_TEMP_SET_RES");
+            LE_ERROR("Error pushing URL_SET");
         }
     }
 }
@@ -279,6 +161,16 @@ static void avcStatusHandler
     }
 }
 
+static void timerExpiredHandler(le_timer_Ref_t  timerRef)
+{
+    sig_appTermination_cbh(0);
+
+    LE_INFO("Legato writeConfigTree App Ended");
+
+    //Quit the app
+    exit(EXIT_SUCCESS);
+}
+
 COMPONENT_INIT
 {
     LE_INFO("Start Legato writeConfigTree App");
@@ -299,72 +191,34 @@ COMPONENT_INIT
         LE_INFO("AirVantage Connection Controller started.");
     }
 
+    LE_INFO("Started LWM2M session with AirVantage");
+    sessionTimer = le_timer_Create("AssetDataAppSessionTimer");
+    le_clk_Time_t avcInterval = {APP_RUNNING_DURATION_SEC, 0};
+    le_timer_SetInterval(sessionTimer, avcInterval);
+    le_timer_SetRepeat(sessionTimer, 1);
+    le_timer_SetHandler(sessionTimer, timerExpiredHandler);
+    le_timer_Start(sessionTimer);
+
     // Create resources
     LE_INFO("Create instances AssetData ");
-    le_result_t resultCreateRoomName;
-    resultCreateRoomName = le_avdata_CreateResource(ROOM_NAME_VAR_RES,LE_AVDATA_ACCESS_VARIABLE);
-    if (LE_FAULT == resultCreateRoomName)
-    {
-        LE_ERROR("Error in creating ROOM_NAME_VAR_RES");
-    }
-    le_result_t resultCreateIsACOn;
-    resultCreateIsACOn = le_avdata_CreateResource(IS_AC_ON_VAR_RES,LE_AVDATA_ACCESS_VARIABLE);
-    if (LE_FAULT == resultCreateIsACOn)
-    {
-        LE_ERROR("Error in creating IS_AC_ON_VAR_RES");
-    }
-    le_result_t resultCreateRoomTemp;
-    resultCreateRoomTemp = le_avdata_CreateResource(ROOM_TEMP_READING_VAR_RES,LE_AVDATA_ACCESS_VARIABLE);
-    if (LE_FAULT == resultCreateRoomTemp)
-    {
-        LE_ERROR("Error in creating ROOM_TEMP_READING_VAR_RES");
-    }
 
     le_result_t resultCreateTargetTemp;
-    resultCreateTargetTemp = le_avdata_CreateResource(TARGET_TEMP_SET_RES,LE_AVDATA_ACCESS_SETTING);
+    resultCreateTargetTemp = le_avdata_CreateResource(URL_SET,LE_AVDATA_ACCESS_SETTING);
     if (LE_FAULT == resultCreateTargetTemp)
     {
-        LE_ERROR("Error in creating TARGET_TEMP_SET_RES");
+        LE_ERROR("Error in creating URL_SET");
     }
 
-    le_result_t resultCreateACCmd = le_avdata_CreateResource(AC_CMD_TURN_OFF_RES, LE_AVDATA_ACCESS_COMMAND);
-    if (LE_FAULT == resultCreateACCmd)
-    {
-        LE_ERROR("Error in creating AC_CMD_TURN_OFF_RES");
-    }
-
-    //setting the variable initial value
-    TargetTempSet = 21;
-    RoomTempVar = 30.0;
-    RoomNameVar = "Room1";
-    le_result_t resultSetRoomName = le_avdata_SetString(ROOM_NAME_VAR_RES, RoomNameVar);
-    if (LE_FAULT == resultSetRoomName)
-    {
-        LE_ERROR("Error in setting ROOM_NAME_VAR_RES");
-    }
-    le_result_t resultSetIsACOn = le_avdata_SetBool(IS_AC_ON_VAR_RES, IsACOn);
-    if (LE_FAULT == resultSetIsACOn)
-    {
-        LE_ERROR("Error in setting IS_AC_ON_VAR_RES");
-    }
-    le_result_t resultSetRoomTemp = le_avdata_SetFloat(ROOM_TEMP_READING_VAR_RES,RoomTempVar);
-    if (LE_FAULT == resultSetRoomTemp)
-    {
-        LE_ERROR("Error in setting ROOM_TEMP_READING_VAR_RES");
-    }
-    le_result_t resultSetTargetTemp = le_avdata_SetInt(TARGET_TEMP_SET_RES,TargetTempSet);
+    le_result_t resultSetTargetTemp = le_avdata_SetString(URL_SET,"");
     if (LE_FAULT == resultSetTargetTemp)
     {
-        LE_ERROR("Error in setting TARGET_TEMP_SET_RES");
+        LE_ERROR("Error in setting URL_SET");
     }
 
     //Register handler for Variables, Settings and Commands
     LE_INFO("Register handler of paths");
 
-    le_avdata_AddResourceEventHandler(TARGET_TEMP_SET_RES,
-                                      TempSettingHandler, NULL);
-
-    le_avdata_AddResourceEventHandler(AC_CMD_TURN_OFF_RES, ExecACCtrlCmd, NULL);
+    le_avdata_AddResourceEventHandler(URL_SET, UrlSettingHandler, NULL);
 
     //Set timer to update on server on a regular basis
     serverUpdateTimerRef = le_timer_Create("serverUpdateTimer");     //create timer

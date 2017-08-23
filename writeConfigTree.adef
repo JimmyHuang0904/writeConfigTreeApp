@@ -17,3 +17,13 @@ bindings:
 {
     writeConfigTree.writeConfigTree.le_avdata -> avcService.le_avdata
 }
+
+requires:
+{
+    configTree:
+    {
+        // Config Tree access to write to
+        [rw] writeConfigTree
+        [rw] trafficLight
+    }
+}

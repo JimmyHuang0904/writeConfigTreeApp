@@ -1,13 +1,16 @@
 #include "legato.h"
 #include "interfaces.h"
 
-#define APP_RUNNING_DURATION_SEC 110        //run this app for 10min
+//#define APP_RUNNING_DURATION_SEC 110        //run this app for 10min
 #define ARRAY_SIZE 512
 
 /* settings*/
 
 //float - target temperature setting
-#define URL_SET "/trafficLight/url"
+#define CONFIG_TREE_NAME "trafficLight:"
+#define CONFIG_TREE_URL "/url"
+//#define CONFIG_TREE_INFO_EXITCODE_CHECKFLAG "/info/exitCode/checkFlag"
+#define CONFIG_TREE_POLLINGINTERVALSEC "/pollingIntervalSec"
 
 //-------------------------------------------------------------------------------------------------
 /**
@@ -21,7 +24,7 @@ le_avdata_SessionStateHandlerRef_t  avcEventHandlerRef = NULL;
 //reference to AVC Session handler
 le_avdata_RequestSessionObjRef_t sessionRef = NULL;
 //reference to push asset data timer
-le_timer_Ref_t serverUpdateTimerRef = NULL;
+//le_timer_Ref_t serverUpdateTimerRef = NULL;
 
 //-------------------------------------------------------------------------------------------------
 /**
@@ -31,13 +34,14 @@ le_timer_Ref_t serverUpdateTimerRef = NULL;
 
 static void writeConfig
 (
-    char * url
+    char * dataToWrite,
+    char * pathToData
 )
 {
     le_cfg_IteratorRef_t iteratorRef;
     // Set default Url to the global variable Url
-    iteratorRef = le_cfg_CreateWriteTxn("trafficLight:/");
-    le_cfg_SetString(iteratorRef, "url", url);
+    iteratorRef = le_cfg_CreateWriteTxn(CONFIG_TREE_NAME);
+    le_cfg_SetString(iteratorRef, pathToData, dataToWrite);
     le_cfg_CommitTxn(iteratorRef);
 }
 //-------------------------------------------------------------------------------------------------
@@ -54,72 +58,36 @@ static void UrlSettingHandler
     void* contextPtr
 )
 {
-    // WriteUrlSettingCounter++;
+    char * pathToData;
 
-    // LE_INFO("------------------- Server writes temperature setting [%d] times ------------",
-    //             WriteUrlSettingCounter);
-    char targetTempLatest[ARRAY_SIZE] = "";
+    if ( !strcmp( (char *) contextPtr, "urlPtr") )
+    {
+        LE_INFO("I am in context ptr url");
+        pathToData = CONFIG_TREE_URL;
+        LE_INFO(" path to data is %s", pathToData);
+    }
+    else if ( !strcmp( (char *) contextPtr, "pollingIntervalSecPtr") )
+    {
+        LE_INFO("I am in pollingIntervalSecPtr");
+        pathToData = CONFIG_TREE_POLLINGINTERVALSEC;
+        LE_INFO(" path to data is %s", pathToData);
+    }
 
-    le_result_t resultGetString = le_avdata_GetString(URL_SET, targetTempLatest, ARRAY_SIZE);
+    LE_INFO("------------------- Server writes to: %s ------------------", (char *) contextPtr);
+    char bufferDataLatest[ARRAY_SIZE] = "";
+
+    le_result_t resultGetString = le_avdata_GetString(CONFIG_TREE_URL, bufferDataLatest, ARRAY_SIZE);
     if (LE_FAULT == resultGetString)
     {
-        LE_ERROR("Error in getting latest URL_SET");
+        LE_ERROR("Error in getting latest CONFIG_TREE_URL");
     }
-    le_result_t resultSetTargetTemp = le_avdata_SetString(URL_SET, targetTempLatest);
+    le_result_t resultSetTargetTemp = le_avdata_SetString(CONFIG_TREE_URL, bufferDataLatest);
     if (LE_FAULT == resultSetTargetTemp)
     {
-        LE_ERROR("Error in getting latest URL_SET");
+        LE_ERROR("Error in getting latest CONFIG_TREE_URL");
     }
 
-    writeConfig(targetTempLatest);
-}
-
-//-------------------------------------------------------------------------------------------------
-/**
- * Asset data push
- */
-//-------------------------------------------------------------------------------------------------
-
-//-------------------------------------------------------------------------------------------------
-/**
- * This function is called whenever push has been performed successfully in AirVantage server
- */
-//-------------------------------------------------------------------------------------------------
-static void PushCallbackHandler
-(
-    le_avdata_PushStatus_t status,
-    void* contextPtr
-)
-{
-    switch (status)
-    {
-        case LE_AVDATA_PUSH_SUCCESS:
-            LE_INFO("Legato writeConfigTree push successfully");
-            break;
-        case LE_AVDATA_PUSH_FAILED:
-            LE_INFO("Legato writeConfigTree push failed");
-            break;
-    }
-}
-
-//-------------------------------------------------------------------------------------------------
-/**
- * Push ack callback handler
- * This function is called every 10 seconds to push the data and update data in AirVantage server
- */
-//-------------------------------------------------------------------------------------------------
-void PushResources(le_timer_Ref_t  timerRef)
-{
-    // if session is still open, push the values
-    if (NULL != avcEventHandlerRef)
-    {
-        le_result_t resultPushTargetTemp;
-        resultPushTargetTemp = le_avdata_Push(URL_SET, PushCallbackHandler, NULL);
-        if (LE_FAULT == resultPushTargetTemp)
-        {
-            LE_ERROR("Error pushing URL_SET");
-        }
-    }
+    writeConfig(bufferDataLatest, pathToData);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -161,16 +129,6 @@ static void avcStatusHandler
     }
 }
 
-static void timerExpiredHandler(le_timer_Ref_t  timerRef)
-{
-    sig_appTermination_cbh(0);
-
-    LE_INFO("Legato writeConfigTree App Ended");
-
-    //Quit the app
-    exit(EXIT_SUCCESS);
-}
-
 COMPONENT_INIT
 {
     LE_INFO("Start Legato writeConfigTree App");
@@ -186,47 +144,50 @@ COMPONENT_INIT
     if (NULL == sessionRequestRef)
     {
         LE_ERROR("AirVantage Connection Controller does not start.");
-    }else{
+    }
+    else{
         sessionRef=sessionRequestRef;
         LE_INFO("AirVantage Connection Controller started.");
     }
 
     LE_INFO("Started LWM2M session with AirVantage");
-    sessionTimer = le_timer_Create("AssetDataAppSessionTimer");
-    le_clk_Time_t avcInterval = {APP_RUNNING_DURATION_SEC, 0};
-    le_timer_SetInterval(sessionTimer, avcInterval);
-    le_timer_SetRepeat(sessionTimer, 1);
-    le_timer_SetHandler(sessionTimer, timerExpiredHandler);
-    le_timer_Start(sessionTimer);
 
     // Create resources
     LE_INFO("Create instances AssetData ");
 
-    le_result_t resultCreateTargetTemp;
-    resultCreateTargetTemp = le_avdata_CreateResource(URL_SET,LE_AVDATA_ACCESS_SETTING);
-    if (LE_FAULT == resultCreateTargetTemp)
+    le_result_t resultCreateUrl;
+    resultCreateUrl = le_avdata_CreateResource(CONFIG_TREE_URL, LE_AVDATA_ACCESS_SETTING);
+    if (LE_FAULT == resultCreateUrl)
     {
-        LE_ERROR("Error in creating URL_SET");
+        LE_ERROR("Error in creating CONFIG_TREE_URL");
     }
 
-    le_result_t resultSetTargetTemp = le_avdata_SetString(URL_SET,"");
+    le_result_t resultSetTargetTemp = le_avdata_SetString(CONFIG_TREE_URL, "");
     if (LE_FAULT == resultSetTargetTemp)
     {
-        LE_ERROR("Error in setting URL_SET");
+        LE_ERROR("Error in setting CONFIG_TREE_URL");
     }
+
+    le_result_t resultCreatePollingSec;
+    resultCreatePollingSec = le_avdata_CreateResource(CONFIG_TREE_POLLINGINTERVALSEC, LE_AVDATA_ACCESS_SETTING);
+    if (LE_FAULT == resultCreatePollingSec)
+    {
+        LE_ERROR("Error in creating CONFIG_TREE_POLLINGINTERVALSEC");
+    }
+
+    // le_result_t resultSetTargetTemp = le_avdata_SetInt(CONFIG_TREE_POLLINGINTERVALSEC, DEFA);
+    // if (LE_FAULT == resultSetTargetTemp)
+    // {
+    //     LE_ERROR("Error in setting CONFIG_TREE_URL");
+    // }
+
+
 
     //Register handler for Variables, Settings and Commands
     LE_INFO("Register handler of paths");
 
-    le_avdata_AddResourceEventHandler(URL_SET, UrlSettingHandler, NULL);
-
-    //Set timer to update on server on a regular basis
-    serverUpdateTimerRef = le_timer_Create("serverUpdateTimer");     //create timer
-    le_clk_Time_t serverUpdateInterval = { 10, 0 };            //update server every 10 seconds
-    le_timer_SetInterval(serverUpdateTimerRef, serverUpdateInterval);
-    le_timer_SetRepeat(serverUpdateTimerRef, 0);                   //set repeat to always
-    //set callback function to handle timer expiration event
-    le_timer_SetHandler(serverUpdateTimerRef, PushResources);
-    //start timer
-    le_timer_Start(serverUpdateTimerRef);
+    char * urlPtr = "urlPtr";
+    char * pollingIntervalSecPtr = "pollingIntervalSecPtr";
+    le_avdata_AddResourceEventHandler(CONFIG_TREE_URL, UrlSettingHandler, urlPtr);
+    le_avdata_AddResourceEventHandler(CONFIG_TREE_POLLINGINTERVALSEC, UrlSettingHandler, pollingIntervalSecPtr);
 }

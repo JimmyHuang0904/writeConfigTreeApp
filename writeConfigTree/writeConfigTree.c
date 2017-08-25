@@ -1,56 +1,86 @@
 #include "legato.h"
 #include "interfaces.h"
 
-//#define APP_RUNNING_DURATION_SEC 110        //run this app for 10min
 #define ARRAY_SIZE 512
 
 /* settings*/
 
-//float - target temperature setting
+// Name of the Config Tree you want to write to
 #define CONFIG_TREE_NAME "trafficLight:"
+
+// Paths in the config tree you want to write to
 #define CONFIG_TREE_URL "/url"
-//#define CONFIG_TREE_INFO_EXITCODE_CHECKFLAG "/info/exitCode/checkFlag"
+#define CONFIG_TREE_INFO_EXITCODE_CHECKFLAG "/info/exitCode/checkFlag"
+#define CONFIG_TREE_INFO_CONTENT_CHECKFLAG "/info/content/checkFlag"
 #define CONFIG_TREE_POLLINGINTERVALSEC "/pollingIntervalSec"
+
+// Define contextPtr tags for each path
+#define URL_PTR "urlPtr"
+#define EXITCODE_CHECKFLAG_PTR "exitCodeFlagPtr"
+#define CONTENT_CHECKFLAG_PTR "contentFlagPtr"
+#define POLLINGINTERVALSEC_PTR "pollingIntervalSecPtr"
 
 //-------------------------------------------------------------------------------------------------
 /**
- * AVC related variable and update timer
+ * AVC related variable
  */
 //-------------------------------------------------------------------------------------------------
-// reference timer for app sessionTimer
-le_timer_Ref_t sessionTimer;
 //reference to AVC event handler
 le_avdata_SessionStateHandlerRef_t  avcEventHandlerRef = NULL;
 //reference to AVC Session handler
 le_avdata_RequestSessionObjRef_t sessionRef = NULL;
-//reference to push asset data timer
-//le_timer_Ref_t serverUpdateTimerRef = NULL;
 
 //-------------------------------------------------------------------------------------------------
 /**
- * Asset data handlers
+ * Functions to write different data types (bool, string, int) to the config tree given the
+ * path and the data
  */
 //-------------------------------------------------------------------------------------------------
+static void writeBoolToConfig
+(
+    bool dataToWrite,
+    char * pathToData
+)
+{
+    le_cfg_IteratorRef_t iteratorRef;
 
-static void writeConfig
+    iteratorRef = le_cfg_CreateWriteTxn(CONFIG_TREE_NAME);
+    le_cfg_SetBool(iteratorRef, pathToData, dataToWrite);
+    le_cfg_CommitTxn(iteratorRef);
+}
+
+static void writeStringToConfig
 (
     char * dataToWrite,
     char * pathToData
 )
 {
     le_cfg_IteratorRef_t iteratorRef;
-    // Set default Url to the global variable Url
+
     iteratorRef = le_cfg_CreateWriteTxn(CONFIG_TREE_NAME);
     le_cfg_SetString(iteratorRef, pathToData, dataToWrite);
     le_cfg_CommitTxn(iteratorRef);
 }
+
+static void writeIntToConfig
+(
+    int dataToWrite,
+    char * pathToData
+)
+{
+    le_cfg_IteratorRef_t iteratorRef;
+
+    iteratorRef = le_cfg_CreateWriteTxn(CONFIG_TREE_NAME);
+    le_cfg_SetInt(iteratorRef, pathToData, dataToWrite);
+    le_cfg_CommitTxn(iteratorRef);
+}
 //-------------------------------------------------------------------------------------------------
 /**
- * Setting data handler.
- * This function is returned whenever AirVantage performs a read or write on the target temperature
+ * This function is returned whenever a write operation occurs
+ * 
  */
 //-------------------------------------------------------------------------------------------------
-static void UrlSettingHandler
+static void configSettingHandler
 (
     const char* path,
     le_avdata_AccessType_t accessType,
@@ -59,35 +89,96 @@ static void UrlSettingHandler
 )
 {
     char * pathToData;
+    char * dataType = "null";
 
-    if ( !strcmp( (char *) contextPtr, "urlPtr") )
+    char bufferString[ARRAY_SIZE] = "";
+    int bufferInt;
+    bool bufferBool;
+
+    // find the pathToData and the dataType through the contextPtr sent by the handler.
+    // add more if cases to handle more paths
+    if ( !strcmp( (char *) contextPtr, URL_PTR) )
     {
-        LE_INFO("I am in context ptr url");
         pathToData = CONFIG_TREE_URL;
-        LE_INFO(" path to data is %s", pathToData);
+        dataType = "string";
     }
-    else if ( !strcmp( (char *) contextPtr, "pollingIntervalSecPtr") )
+    else if ( !strcmp( (char *) contextPtr, POLLINGINTERVALSEC_PTR) )
     {
-        LE_INFO("I am in pollingIntervalSecPtr");
         pathToData = CONFIG_TREE_POLLINGINTERVALSEC;
-        LE_INFO(" path to data is %s", pathToData);
+        dataType = "int";
     }
-
-    LE_INFO("------------------- Server writes to: %s ------------------", (char *) contextPtr);
-    char bufferDataLatest[ARRAY_SIZE] = "";
-
-    le_result_t resultGetString = le_avdata_GetString(CONFIG_TREE_URL, bufferDataLatest, ARRAY_SIZE);
-    if (LE_FAULT == resultGetString)
+    else if ( !strcmp( (char *) contextPtr, EXITCODE_CHECKFLAG_PTR) )
     {
-        LE_ERROR("Error in getting latest CONFIG_TREE_URL");
+        pathToData = CONFIG_TREE_INFO_EXITCODE_CHECKFLAG;
+        dataType = "bool";
     }
-    le_result_t resultSetTargetTemp = le_avdata_SetString(CONFIG_TREE_URL, bufferDataLatest);
-    if (LE_FAULT == resultSetTargetTemp)
+    else if ( !strcmp( (char *) contextPtr, CONTENT_CHECKFLAG_PTR) )
     {
-        LE_ERROR("Error in getting latest CONFIG_TREE_URL");
+        pathToData = CONFIG_TREE_INFO_CONTENT_CHECKFLAG;
+        dataType = "bool";
+    }
+    else
+    {
+        LE_INFO("Nothing to Write");
+        return;
     }
 
-    writeConfig(bufferDataLatest, pathToData);
+    LE_INFO("------------- Server writes to: %s -------------", (char *) contextPtr);
+    LE_INFO("dataType is : %s, path to data is : %s", dataType, pathToData);
+
+
+    if ( !strcmp( dataType, "string" ) )
+    {
+        le_result_t resultGetString = le_avdata_GetString(pathToData, bufferString, ARRAY_SIZE);
+        if (LE_FAULT == resultGetString)
+        {
+            LE_ERROR("Error in getting latest %s", pathToData);
+        }
+        le_result_t resultSetString = le_avdata_SetString(pathToData, bufferString);
+        if (LE_FAULT == resultSetString)
+        {
+            LE_ERROR("Error in getting latest %s", pathToData);
+        }
+
+        writeStringToConfig(bufferString, pathToData);
+    }
+    else if ( !strcmp( dataType, "int" ) )
+    {
+        LE_INFO("pathToData is %s, bufferInt before getint is %i (should be 10)", pathToData, bufferInt);
+
+        le_result_t resultGetInt = le_avdata_GetInt(pathToData, &bufferInt);
+        if (LE_FAULT == resultGetInt)
+        {
+            LE_ERROR("Error in getting latest %s", pathToData);
+        }
+        LE_INFO(" buffer int is =%i, should be what is written on myAVLib", bufferInt);
+        le_result_t resultSetInt = le_avdata_SetInt(pathToData, bufferInt);
+        if (LE_FAULT == resultSetInt)
+        {
+            LE_ERROR("Error in getting latest %s", pathToData);
+        }
+
+        writeIntToConfig(bufferInt, pathToData);
+    }
+    else if ( !strcmp( dataType, "bool" ) )
+    {
+        le_result_t resultGetBool = le_avdata_GetBool(pathToData, &bufferBool);
+        if (LE_FAULT == resultGetBool)
+        {
+            LE_ERROR("Error in getting latest %s", pathToData);
+        }
+        le_result_t resultSetBool = le_avdata_SetBool(pathToData, bufferBool);
+        if (LE_FAULT == resultSetBool)
+        {
+            LE_ERROR("Error in getting latest %s", pathToData);
+        }
+
+        writeBoolToConfig(bufferBool, pathToData);
+    }
+    else
+    {
+        LE_ERROR("Error, not a valid dataType or wrong contextPtr");
+    }
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -145,7 +236,8 @@ COMPONENT_INIT
     {
         LE_ERROR("AirVantage Connection Controller does not start.");
     }
-    else{
+    else
+    {
         sessionRef=sessionRequestRef;
         LE_INFO("AirVantage Connection Controller started.");
     }
@@ -162,12 +254,6 @@ COMPONENT_INIT
         LE_ERROR("Error in creating CONFIG_TREE_URL");
     }
 
-    le_result_t resultSetTargetTemp = le_avdata_SetString(CONFIG_TREE_URL, "");
-    if (LE_FAULT == resultSetTargetTemp)
-    {
-        LE_ERROR("Error in setting CONFIG_TREE_URL");
-    }
-
     le_result_t resultCreatePollingSec;
     resultCreatePollingSec = le_avdata_CreateResource(CONFIG_TREE_POLLINGINTERVALSEC, LE_AVDATA_ACCESS_SETTING);
     if (LE_FAULT == resultCreatePollingSec)
@@ -175,19 +261,38 @@ COMPONENT_INIT
         LE_ERROR("Error in creating CONFIG_TREE_POLLINGINTERVALSEC");
     }
 
-    // le_result_t resultSetTargetTemp = le_avdata_SetInt(CONFIG_TREE_POLLINGINTERVALSEC, DEFA);
-    // if (LE_FAULT == resultSetTargetTemp)
-    // {
-    //     LE_ERROR("Error in setting CONFIG_TREE_URL");
-    // }
+    le_result_t resultExitCodeCheck;
+    resultExitCodeCheck = le_avdata_CreateResource(CONFIG_TREE_INFO_EXITCODE_CHECKFLAG, LE_AVDATA_ACCESS_SETTING);
+    if (LE_FAULT == resultExitCodeCheck)
+    {
+        LE_ERROR("Error in creating CONFIG_TREE_INFO_EXITCODE_CHECKFLAG");
+    }
 
+    le_result_t resultContentCheck;
+    resultContentCheck = le_avdata_CreateResource(CONFIG_TREE_INFO_CONTENT_CHECKFLAG, LE_AVDATA_ACCESS_SETTING);
+    if (LE_FAULT == resultContentCheck)
+    {
+        LE_ERROR("Error in creating CONFIG_TREE_INFO_CONTENT_CHECKFLAG");
+    }
 
+    // Initialize Data
+    le_result_t resultSetPollingSec = le_avdata_SetInt(CONFIG_TREE_POLLINGINTERVALSEC, 20);
+    if (LE_FAULT == resultSetPollingSec)
+    {
+        LE_ERROR("Error in setting CONFIG_TREE_POLLINGINTERVALSEC");
+    }
 
-    //Register handler for Variables, Settings and Commands
+    le_result_t resultSetUrl = le_avdata_SetString(CONFIG_TREE_URL, "");
+    if (LE_FAULT == resultSetUrl)
+    {
+        LE_ERROR("Error in setting CONFIG_TREE_URL");
+    }
+
+    // Register handler for Write Settings
     LE_INFO("Register handler of paths");
 
-    char * urlPtr = "urlPtr";
-    char * pollingIntervalSecPtr = "pollingIntervalSecPtr";
-    le_avdata_AddResourceEventHandler(CONFIG_TREE_URL, UrlSettingHandler, urlPtr);
-    le_avdata_AddResourceEventHandler(CONFIG_TREE_POLLINGINTERVALSEC, UrlSettingHandler, pollingIntervalSecPtr);
+    le_avdata_AddResourceEventHandler(CONFIG_TREE_URL, configSettingHandler, URL_PTR);
+    le_avdata_AddResourceEventHandler(CONFIG_TREE_POLLINGINTERVALSEC, configSettingHandler, POLLINGINTERVALSEC_PTR);
+    le_avdata_AddResourceEventHandler(CONFIG_TREE_INFO_EXITCODE_CHECKFLAG, configSettingHandler, EXITCODE_CHECKFLAG_PTR);
+    le_avdata_AddResourceEventHandler(CONFIG_TREE_INFO_CONTENT_CHECKFLAG, configSettingHandler, CONTENT_CHECKFLAG_PTR);
 }

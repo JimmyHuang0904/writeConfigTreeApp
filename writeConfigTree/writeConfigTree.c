@@ -14,28 +14,33 @@
 #define CONFIG_TREE_INFO_CONTENT_CHECKFLAG "/info/content/checkFlag"
 #define CONFIG_TREE_POLLINGINTERVALSEC "/pollingIntervalSec"
 
-// Define contextPtr tags for each path
-#define URL_PTR "urlPtr"
-#define EXITCODE_CHECKFLAG_PTR "exitCodeFlagPtr"
-#define CONTENT_CHECKFLAG_PTR "contentFlagPtr"
-#define POLLINGINTERVALSEC_PTR "pollingIntervalSecPtr"
-
 //-------------------------------------------------------------------------------------------------
 /**
  * AVC related variable
  */
 //-------------------------------------------------------------------------------------------------
-//reference to AVC event handler
+// Reference to AVC event handler
 le_avdata_SessionStateHandlerRef_t  avcEventHandlerRef = NULL;
-//reference to AVC Session handler
+// Reference to AVC Session handler
 le_avdata_RequestSessionObjRef_t sessionRef = NULL;
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Struct defines each config entry's data type, path to config tree node and resource for comparison
+ */
+//--------------------------------------------------------------------------------------------------
 typedef struct {
     le_avdata_DataType_t dataType;  ///< Type of data
     const char * configTreePathPtr; ///< Path to data in the configTree.
     void * resourcePathPtr;   ///< Path to the resource when accessed from AVC.
 } ConfigEntry_t;
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Holds information of the data type, path to where the config tree will be written, and contextPtr
+ * tag.
+ */
+//--------------------------------------------------------------------------------------------------
 const ConfigEntry_t ConfigEntries[] = {
     { LE_AVDATA_DATA_TYPE_STRING,
       CONFIG_TREE_URL,
@@ -52,10 +57,9 @@ const ConfigEntry_t ConfigEntries[] = {
     /* ... insert other entries here ... */
 };
 
-
 //-------------------------------------------------------------------------------------------------
 /**
- * Functions to write different data types (bool, string, int) to the config tree given the
+ * Functions to write different data types (bool, string, int, float) to the config tree given the
  * path and the data
  */
 //-------------------------------------------------------------------------------------------------
@@ -97,26 +101,26 @@ static void WriteIntToConfig
     le_cfg_SetInt(iteratorRef, pathToDataPtr, dataToWrite);
     le_cfg_CommitTxn(iteratorRef);
 }
+
+static void WriteFloatToConfig
+(
+    double dataToWrite,
+    const char * pathToDataPtr
+)
+{
+    le_cfg_IteratorRef_t iteratorRef;
+
+    iteratorRef = le_cfg_CreateWriteTxn(CONFIG_TREE_NAME);
+    le_cfg_SetFloat(iteratorRef, pathToDataPtr, dataToWrite);
+    le_cfg_CommitTxn(iteratorRef);
+}
+
 //-------------------------------------------------------------------------------------------------
 /**
  * This function is returned whenever a write operation occurs from AirVantage.
  * It will write the data sent from the resource to the path specified.
  */
 //-------------------------------------------------------------------------------------------------
-
-// static void testingFunc
-// (
-// )
-// {
-//     int numOfElements = sizeof(ConfigEntries)/sizeof(ConfigEntries[0]);
-//     int i=0;
-//     for ( i = 0; i < numOfElements; i++)
-//     {
-//         const ConfigEntry_t * configEntryPtr = &ConfigEntries[i];
-//     }
-
-// }
-
 static void ConfigSettingHandler
 (
     const char* path,
@@ -125,20 +129,18 @@ static void ConfigSettingHandler
     void* contextPtr
 )
 {
-    const char * pathToDataPtr;
-    le_avdata_DataType_t dataType;
+    const char * pathToDataPtr = NULL;
+    le_avdata_DataType_t dataType = LE_AVDATA_DATA_TYPE_NONE;
 
     // Data to be stored with their respective data types
     char bufferString[ARRAY_SIZE] = "";
     int bufferInt;
     bool bufferBool;
+    double bufferFloat;
+    int i = 0;
 
     // Find the pathToDataPtr and the dataType through the contextPtr sent by the handler.
-    // add more if cases to handle more paths
-    int numOfElements = sizeof(ConfigEntries)/sizeof(ConfigEntries[0]);
-    int i=0;
-
-    for ( i = 0; i < numOfElements; i++)
+    for ( i = 0; i < NUM_ARRAY_MEMBERS(ConfigEntries); i++)
     {
         if ( contextPtr == ConfigEntries[i].resourcePathPtr )
         {
@@ -147,12 +149,7 @@ static void ConfigSettingHandler
         }
     }
 
-    if ( !dataType )
-    {
-        LE_ERROR("Error: dataType was not assigned, pathToDataPtr may be corrupt");
-    }
-
-    LE_INFO("------------- Server writes to: %s -------------", (char *) contextPtr);
+    LE_INFO("------------- Server writes to: %s%s -------------", CONFIG_TREE_NAME, (char *) contextPtr);
     LE_INFO("path to data is : %s", pathToDataPtr);
 
     // Get the data with their respective data types
@@ -173,14 +170,11 @@ static void ConfigSettingHandler
     }
     else if ( dataType == LE_AVDATA_DATA_TYPE_INT )
     {
-        LE_INFO("pathToDataPtr is %s, bufferInt before getint is %i (should be 10)", pathToDataPtr, bufferInt);
-
         le_result_t resultGetInt = le_avdata_GetInt(pathToDataPtr, &bufferInt);
         if (LE_FAULT == resultGetInt)
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        LE_INFO(" buffer int is =%i, should be what is written on myAVLib", bufferInt);
         le_result_t resultSetInt = le_avdata_SetInt(pathToDataPtr, bufferInt);
         if (LE_FAULT == resultSetInt)
         {
@@ -188,6 +182,21 @@ static void ConfigSettingHandler
         }
 
         WriteIntToConfig(bufferInt, pathToDataPtr);
+    }
+    else if ( dataType == LE_AVDATA_DATA_TYPE_FLOAT )
+    {
+        le_result_t resultGetFloat = le_avdata_GetFloat(pathToDataPtr, &bufferFloat);
+        if (LE_FAULT == resultGetFloat)
+        {
+            LE_ERROR("Error in getting latest %s", pathToDataPtr);
+        }
+        le_result_t resultSetFloat = le_avdata_SetFloat(pathToDataPtr, bufferFloat);
+        if (LE_FAULT == resultSetFloat)
+        {
+            LE_ERROR("Error in getting latest %s", pathToDataPtr);
+        }
+
+        WriteFloatToConfig(bufferFloat, pathToDataPtr);
     }
     else if ( dataType == LE_AVDATA_DATA_TYPE_BOOL )
     {
@@ -204,6 +213,10 @@ static void ConfigSettingHandler
 
         WriteBoolToConfig(bufferBool, pathToDataPtr);
     }
+    else if ( dataType == LE_AVDATA_DATA_TYPE_NONE )
+    {
+        LE_ERROR("Error: dataType was not assigned (type none), pathToDataPtr may be corrupt");
+    }
     else
     {
         LE_ERROR("Error, not a valid dataType or wrong contextPtr");
@@ -215,7 +228,10 @@ static void ConfigSettingHandler
  * Function relevant to AirVantage server connection
  */
 //-------------------------------------------------------------------------------------------------
-static void AppTerminationHandler(int sigNum)
+static void AppTerminationHandler
+(
+    int sigNum
+)
 {
     LE_INFO("Close AVC session");
     le_avdata_ReleaseSession(sessionRef);
@@ -253,6 +269,9 @@ static void AvcStatusHandler
 
 COMPONENT_INIT
 {
+    le_result_t resultCreateResources;
+    int i = 0;
+
     LE_INFO("Start Legato writeConfigTree App");
 
     le_sig_Block(SIGTERM);
@@ -278,56 +297,20 @@ COMPONENT_INIT
     // Create resources
     LE_INFO("Create instances AssetData ");
 
-    le_result_t resultCreateUrl;
-    resultCreateUrl = le_avdata_CreateResource(CONFIG_TREE_URL, LE_AVDATA_ACCESS_SETTING);
-    if (LE_FAULT == resultCreateUrl)
+    for ( i = 0; i < NUM_ARRAY_MEMBERS(ConfigEntries); i++)
     {
-        LE_ERROR("Error in creating CONFIG_TREE_URL");
+        resultCreateResources = le_avdata_CreateResource(ConfigEntries[i].configTreePathPtr, LE_AVDATA_ACCESS_SETTING);
+        if (LE_FAULT == resultCreateResources)
+        {
+            LE_ERROR("Error in creating %s", ConfigEntries[i].configTreePathPtr);
+        }
     }
 
-    le_result_t resultCreatePollingSec;
-    resultCreatePollingSec = le_avdata_CreateResource(CONFIG_TREE_POLLINGINTERVALSEC, LE_AVDATA_ACCESS_SETTING);
-    if (LE_FAULT == resultCreatePollingSec)
-    {
-        LE_ERROR("Error in creating CONFIG_TREE_POLLINGINTERVALSEC");
-    }
-
-    le_result_t resultExitCodeCheck;
-    resultExitCodeCheck = le_avdata_CreateResource(CONFIG_TREE_INFO_EXITCODE_CHECKFLAG, LE_AVDATA_ACCESS_SETTING);
-    if (LE_FAULT == resultExitCodeCheck)
-    {
-        LE_ERROR("Error in creating CONFIG_TREE_INFO_EXITCODE_CHECKFLAG");
-    }
-
-    le_result_t resultContentCheck;
-    resultContentCheck = le_avdata_CreateResource(CONFIG_TREE_INFO_CONTENT_CHECKFLAG, LE_AVDATA_ACCESS_SETTING);
-    if (LE_FAULT == resultContentCheck)
-    {
-        LE_ERROR("Error in creating CONFIG_TREE_INFO_CONTENT_CHECKFLAG");
-    }
-
-    // Initialize Data
-    le_result_t resultSetPollingSec = le_avdata_SetInt(CONFIG_TREE_POLLINGINTERVALSEC, 20);
-    if (LE_FAULT == resultSetPollingSec)
-    {
-        LE_ERROR("Error in setting CONFIG_TREE_POLLINGINTERVALSEC");
-    }
-
-    le_result_t resultSetUrl = le_avdata_SetString(CONFIG_TREE_URL, "");
-    if (LE_FAULT == resultSetUrl)
-    {
-        LE_ERROR("Error in setting CONFIG_TREE_URL");
-    }
-    //testingFunc();
     // Register handler for Write Settings
     LE_INFO("Register handler of paths");
 
-
-    int numOfElements = sizeof(ConfigEntries)/sizeof(ConfigEntries[0]);
-    int i=0;
-    for ( i = 0; i < numOfElements; i++)
+    for ( i = 0; i < NUM_ARRAY_MEMBERS(ConfigEntries); i++)
     {
-        LE_INFO("%i, %s %s", ConfigEntries[i].dataType, ConfigEntries[i].configTreePathPtr, (char*)ConfigEntries[i].resourcePathPtr);
         le_avdata_AddResourceEventHandler(ConfigEntries[i].configTreePathPtr, ConfigSettingHandler, ConfigEntries[i].resourcePathPtr);
     }
 }

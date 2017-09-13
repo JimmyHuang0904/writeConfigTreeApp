@@ -1,0 +1,16 @@
+[
+    {
+        "url":
+        {
+            "type": "string",
+            "path": "trafficLight:/url"
+        }
+    },
+    {
+        "pollingIntervalSec":
+        {
+            "type": "int",
+            "path": "trafficLight:/pollingIntervalSec"
+        }
+    }
+]

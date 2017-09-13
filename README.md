@@ -14,6 +14,7 @@ This app was developed using:
 * WP85 release 14
 * [MangOH Green](http://mangoh.io/mangoh-green) + [IoT expansion card (for GPIO)](http://mangoh.io/documentation/iot_expansion_cards.html)
 * [AirVantage (comes with mangOH Green)](https://airvantage.net/)
+* SIM card
 
 There are some useful documentations on how the data can be exchanged in the Legato docs: 
 http://legato.io/legato-docs/latest/avExchangeData.html

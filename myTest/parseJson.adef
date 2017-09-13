@@ -11,6 +11,13 @@ processes:
     }
 }
 
+start: manual
+
+bindings:
+{
+    parseJson.parseJsonComp.le_avdata -> avcService.le_avdata
+}
+
 requires:
 {
     file:

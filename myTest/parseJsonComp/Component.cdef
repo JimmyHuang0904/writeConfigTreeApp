@@ -1,0 +1,17 @@
+sources:
+{
+	parseJson.c
+}
+
+ldflags: 
+{
+	-lcurl
+}
+
+requires:
+{
+	api:
+	{
+		le_cfg.api
+	}
+}

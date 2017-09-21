@@ -19,7 +19,7 @@ This app was developed using:
 There are some useful documentations on how the data can be exchanged in the Legato docs: 
 http://legato.io/legato-docs/latest/avExchangeData.html
 
-### Use
+### Usage
 
 After running this app on your target, you can write to any config tree you want wirelessly(over-the-air). 
 Suppose I want to write to `/url` in my app, trafficLight.

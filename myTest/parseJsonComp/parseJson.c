@@ -8,7 +8,23 @@
  */
 //---------------------------------------------------
 
+typedef enum
+{
+    LE_AVDATA_DATA_TYPE_NONE = 0,
+    LE_AVDATA_DATA_TYPE_INT = 1,
+    LE_AVDATA_DATA_TYPE_FLOAT = 2,
+    LE_AVDATA_DATA_TYPE_BOOL = 3,
+    LE_AVDATA_DATA_TYPE_STRING = 4
+} le_avdata_DataType_t;
+
+
+
+
 le_json_ParsingSessionRef_t jsonSessionRef = NULL;
+le_mem_PoolRef_t PointPool;
+
+
+
 
 int Entries = 0;
 bool flagType = false;
@@ -20,10 +36,12 @@ static void SigTermEventHandler(int sigNum);
 typedef struct {
     le_avdata_DataType_t dataType;  ///< Type of data
     char * configTreePathPtr; ///< Path to data in the configTree.
-    void * resourcePathPtr;   ///< Path to the resource when accessed from AVC.
+    char * resourcePathPtr;   ///< Path to the resource when accessed from AVC.
 } ConfigEntry_t;
 
 ConfigEntry_t * ConfigEntries;
+
+
 
 static void test()
 {
@@ -32,8 +50,9 @@ static void test()
     
     for(i = 0; i < Entries; i++)
     {
-        LE_INFO("dataType = %i", ConfigEntries[i].dataType);
+        //LE_INFO("dataType = %i", ConfigEntries[i].dataType);
         LE_INFO("configTreePathPtr = %s", ConfigEntries[i].configTreePathPtr);
+        LE_INFO("resourcePathPtr = %s", ConfigEntries[i].resourcePathPtr);
     }
 }
 
@@ -43,11 +62,11 @@ static void JsonEventHandler
 )
 {
     const char * stringBuffer;
-
+    
     // const char * eventname = le_json_GetEventName(event);
 
     // LE_INFO("event name = %s", eventname);
-    
+
     if (event == LE_JSON_OBJECT_MEMBER)
     {
         stringBuffer = le_json_GetString();
@@ -63,11 +82,18 @@ static void JsonEventHandler
         else
         {
             // New entry
-            Entries++;
 
-            ConfigEntries = realloc(ConfigEntries, Entries*sizeof(ConfigEntry_t));
-            ConfigEntries[Entries-1].resourcePathPtr = malloc(sizeof(ConfigEntries[Entries-1].resourcePathPtr));
-            strcpy(ConfigEntries[Entries-1].resourcePathPtr, stringBuffer);
+            //PointPool = le_mem_ExpandPool( PointPool , Entries );
+
+            ConfigEntry_t* ConfigEntries = le_mem_ForceAlloc(PointPool);
+
+            //ConfigEntries[Entries].resourcePathPtr = "asdf";
+
+            strcpy(ConfigEntries[Entries].resourcePathPtr, stringBuffer);
+
+            LE_INFO("passed");
+
+            Entries++;
         }
     }
 
@@ -77,39 +103,40 @@ static void JsonEventHandler
 
         if(flagType)
         {
-            LE_INFO(" dataType is : %s", stringBuffer);
-        
-            if( strcmp(stringBuffer, "string") )
-            {
-                ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_STRING;
-            }
-            else if ( strcmp(stringBuffer, "int") )
-            {
-                ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_INT;
-            }
-            else if ( strcmp(stringBuffer, "float") )
-            {
-                ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_FLOAT;
-            }
-            else if ( strcmp(stringBuffer, "bool") )
-            {
-                ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_BOOL;
-            }
-            else
-            {
-                LE_ERROR("Datatype not define. JSON Parsing has stopped/ Terminating App");
-                SigTermEventHandler(1);
-            }
+            //LE_INFO(" dataType is : %s", stringBuffer);
 
-            LE_INFO("in flagtype, %i, entry number = %i ", ConfigEntries[Entries-1].dataType, Entries-1);
+            // if( strcmp(stringBuffer, "string") )
+            // {
+            //     ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_STRING;
+            // }
+            // else if ( strcmp(stringBuffer, "int") )
+            // {
+            //     ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_INT;
+            // }
+            // else if ( strcmp(stringBuffer, "float") )
+            // {
+            //     ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_FLOAT;
+            // }
+            // else if ( strcmp(stringBuffer, "bool") )
+            // {
+            //     ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_BOOL;
+            // }
+            // else
+            // {
+            //     LE_ERROR("datatype not define. JSON Parsing has stopped/ Terminating App");
+            //     SigTermEventHandler(1);
+            // }
+
+            // LE_INFO("in flagtype, %i, entry number = %i ", ConfigEntries[Entries-1].dataType, Entries-1);
             flagType = false;
         }
         else if(flagPath)
         {
             LE_INFO(" datapath is %s entry number is %i", stringBuffer, Entries-1);
 
-            ConfigEntries[Entries-1].configTreePathPtr = malloc(sizeof(ConfigEntries[Entries-1].configTreePathPtr));
-            strcpy(ConfigEntries[Entries-1].configTreePathPtr, stringBuffer);
+            strcpy(ConfigEntries->configTreePathPtr, stringBuffer);
+
+            LE_INFO(" datapath is %s entry number is %i", ConfigEntries->configTreePathPtr, Entries-1);
 
             flagPath = false;
         }
@@ -177,5 +204,7 @@ COMPONENT_INIT
         LE_INFO("fileDescriptor = %i", fileDescriptor);
     }
 
+    PointPool = le_mem_CreatePool("ConfigEntriesMemPool",sizeof(ConfigEntry_t));
+    
     jsonSessionRef = le_json_Parse(fileDescriptor, JsonEventHandler, ErrorHandler, NULL);
 }

@@ -3,16 +3,10 @@ sources:
 	parseJson.c
 }
 
-ldflags: 
-{
-	-lcurl
-}
-
 requires:
 {
 	api:
 	{
-        airVantage/le_avdata.api
 		le_cfg.api
 	}
 }

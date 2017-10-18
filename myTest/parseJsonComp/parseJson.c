@@ -64,8 +64,10 @@ static void JsonEventHandler
         {
             // New entry
             Entries++;
-
-            ConfigEntries = realloc(ConfigEntries, Entries*sizeof(ConfigEntry_t));
+            if( Entries == 1)
+            {
+                ConfigEntries = malloc(Entries*sizeof(ConfigEntry_t));
+            }
             ConfigEntries[Entries-1].resourcePathPtr = malloc(sizeof(ConfigEntries[Entries-1].resourcePathPtr));
             strcpy(ConfigEntries[Entries-1].resourcePathPtr, stringBuffer);
         }
@@ -79,19 +81,19 @@ static void JsonEventHandler
         {
             LE_INFO(" dataType is : %s", stringBuffer);
         
-            if( strcmp(stringBuffer, "string") )
+            if( !strcmp(stringBuffer, "string") )
             {
                 ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_STRING;
             }
-            else if ( strcmp(stringBuffer, "int") )
+            else if ( !strcmp(stringBuffer, "int") )
             {
                 ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_INT;
             }
-            else if ( strcmp(stringBuffer, "float") )
+            else if ( !strcmp(stringBuffer, "float") )
             {
                 ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_FLOAT;
             }
-            else if ( strcmp(stringBuffer, "bool") )
+            else if ( !strcmp(stringBuffer, "bool") )
             {
                 ConfigEntries[Entries-1].dataType = LE_AVDATA_DATA_TYPE_BOOL;
             }
@@ -159,6 +161,7 @@ static void SigTermEventHandler
         free(ConfigEntries[i].resourcePathPtr);
         free(ConfigEntries[i].configTreePathPtr);
     }
+    free(ConfigEntries);
 
 }
 

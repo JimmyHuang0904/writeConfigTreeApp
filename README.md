@@ -18,3 +18,20 @@ This app was developed using:
 
 There are some useful documentations on how the data can be exchanged in the Legato docs: 
 http://legato.io/legato-docs/latest/avExchangeData.html
+
+### Usage
+
+After running this app on your target, you can write to any config tree you want wirelessly(over-the-air). 
+Suppose I want to write to `/url` in my app, trafficLight.
+From shell,
+```shell
+#!/bin/sh
+
+server="https://eu.airvantage.net
+access_token=< Associated with your device >
+uid=< Associated with your device >
+resource=/url                           #path/to/config/tree you want to write to
+value="https://www.google.ca"           #value to write to
+curl -X POST -s "${server}/api/v1/operations/systems/settings?access_token=${access_token}" -H 'Content-Type: application/json' -d "{\"reboot\":false,\"system\":{\"uids\":[\"${uid}\"]}, \"settings\":[{\"key\":\"${resource}\", \"value\":${value}}]}"
+```
+This will write `https://www.google.ca` to trafficLight:/url from CLI

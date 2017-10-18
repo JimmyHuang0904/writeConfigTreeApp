@@ -3,6 +3,8 @@ requires:
     api:
     {
         airVantage/le_avdata.api
+        modemServices/le_mdc.api
+        le_data.api
         le_cfg.api
     }
 }

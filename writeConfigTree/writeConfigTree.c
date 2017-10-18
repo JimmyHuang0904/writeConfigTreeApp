@@ -1,5 +1,7 @@
 #include "legato.h"
 #include "interfaces.h"
+#include "le_avdata_interface.h"
+#include "le_data_interface.h"
 
 #define ARRAY_SIZE 512
 
@@ -243,6 +245,33 @@ static void AppTerminationHandler
     }
 }
 
+// -------------------------------------------------------------------------------------------------
+/**
+ *  Event callback for connection state changes.
+ */
+// -------------------------------------------------------------------------------------------------
+static void ConnectionStateHandler
+(
+    const char *intfName,
+    bool   isConnected,
+    void*  contextPtr
+)
+{
+    LE_INFO("Connection State Event: '%s' %s",
+            intfName,
+            (isConnected) ? "connected" : "not connected");
+
+
+    if (!isConnected)
+    {
+        LE_ERROR("Data connection: not connected.");
+    }
+    else
+    {
+        LE_INFO("Data connection: connected.");
+    }
+}
+
 //-------------------------------------------------------------------------------------------------
 /**
  * Status handler for avcService updates
@@ -274,8 +303,12 @@ COMPONENT_INIT
 
     LE_INFO("Start Legato writeConfigTree App");
 
+    // Add app termination sequence
     le_sig_Block(SIGTERM);
     le_sig_SetEventHandler(SIGTERM, AppTerminationHandler);
+
+    // register handler for connection state change
+    le_data_AddConnectionStateHandler(ConnectionStateHandler, NULL);
 
     // Start AVC Session
     // Register AVC handler
@@ -297,7 +330,7 @@ COMPONENT_INIT
     // Create resources
     LE_INFO("Create instances AssetData ");
 
-    for ( i = 0; i < NUM_ARRAY_MEMBERS(ConfigEntries); i++)
+    for (i = 0; i < NUM_ARRAY_MEMBERS(ConfigEntries); i++)
     {
         resultCreateResources = le_avdata_CreateResource(ConfigEntries[i].configTreePathPtr, LE_AVDATA_ACCESS_SETTING);
         if (LE_FAULT == resultCreateResources)
@@ -309,8 +342,11 @@ COMPONENT_INIT
     // Register handler for Write Settings
     LE_INFO("Register handler of paths");
 
-    for ( i = 0; i < NUM_ARRAY_MEMBERS(ConfigEntries); i++)
+    for (i = 0; i < NUM_ARRAY_MEMBERS(ConfigEntries); i++)
     {
         le_avdata_AddResourceEventHandler(ConfigEntries[i].configTreePathPtr, ConfigSettingHandler, ConfigEntries[i].resourcePathPtr);
     }
+
+
+    le_data_Request();
 }

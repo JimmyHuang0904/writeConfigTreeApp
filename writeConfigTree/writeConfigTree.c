@@ -167,6 +167,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
+        LE_INFO("String being written is:%s", bufferString);
 
         WriteStringToConfig(bufferString, pathToDataPtr);
     }
@@ -182,6 +183,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
+        LE_INFO("Int being written is:%i", bufferInt);
 
         WriteIntToConfig(bufferInt, pathToDataPtr);
     }
@@ -197,6 +199,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
+        LE_INFO("Float being written is:%f", bufferFloat);
 
         WriteFloatToConfig(bufferFloat, pathToDataPtr);
     }
@@ -212,6 +215,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
+        LE_INFO("Bool being written is:%s", bufferBool ? "true" : "false");
 
         WriteBoolToConfig(bufferBool, pathToDataPtr);
     }

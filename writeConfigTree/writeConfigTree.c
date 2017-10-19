@@ -135,10 +135,10 @@ static void ConfigSettingHandler
     le_avdata_DataType_t dataType = LE_AVDATA_DATA_TYPE_NONE;
 
     // Data to be stored with their respective data types
-    char bufferString[ARRAY_SIZE] = "";
-    int bufferInt;
-    bool bufferBool;
-    double bufferFloat;
+    char bufferString[ARRAY_SIZE] = {0};
+    int32_t bufferInt = 0;
+    bool bufferBool = false;
+    double bufferFloat = 0;
     int i = 0;
 
     // Find the pathToDataPtr and the dataType through the contextPtr sent by the handler.
@@ -162,11 +162,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        le_result_t resultSetString = le_avdata_SetString(pathToDataPtr, bufferString);
-        if (LE_FAULT == resultSetString)
-        {
-            LE_ERROR("Error in getting latest %s", pathToDataPtr);
-        }
+
         LE_INFO("String being written is:%s", bufferString);
 
         WriteStringToConfig(bufferString, pathToDataPtr);
@@ -178,11 +174,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        le_result_t resultSetInt = le_avdata_SetInt(pathToDataPtr, bufferInt);
-        if (LE_FAULT == resultSetInt)
-        {
-            LE_ERROR("Error in getting latest %s", pathToDataPtr);
-        }
+
         LE_INFO("Int being written is:%i", bufferInt);
 
         WriteIntToConfig(bufferInt, pathToDataPtr);
@@ -194,11 +186,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        le_result_t resultSetFloat = le_avdata_SetFloat(pathToDataPtr, bufferFloat);
-        if (LE_FAULT == resultSetFloat)
-        {
-            LE_ERROR("Error in getting latest %s", pathToDataPtr);
-        }
+
         LE_INFO("Float being written is:%f", bufferFloat);
 
         WriteFloatToConfig(bufferFloat, pathToDataPtr);
@@ -210,11 +198,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        le_result_t resultSetBool = le_avdata_SetBool(pathToDataPtr, bufferBool);
-        if (LE_FAULT == resultSetBool)
-        {
-            LE_ERROR("Error in getting latest %s", pathToDataPtr);
-        }
+
         LE_INFO("Bool being written is:%s", bufferBool ? "true" : "false");
 
         WriteBoolToConfig(bufferBool, pathToDataPtr);

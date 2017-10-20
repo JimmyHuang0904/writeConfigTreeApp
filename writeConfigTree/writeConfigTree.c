@@ -25,6 +25,8 @@
 le_avdata_SessionStateHandlerRef_t  avcEventHandlerRef = NULL;
 // Reference to AVC Session handler
 le_avdata_RequestSessionObjRef_t sessionRef = NULL;
+// Reference to data connection
+le_data_RequestObjRef_t dataRequestRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -231,6 +233,12 @@ static void AppTerminationHandler
         LE_INFO("Unregister the session handler");
         le_avdata_RemoveSessionStateHandler(avcEventHandlerRef);
     }
+
+    if (NULL != dataRequestRef)
+    {
+        LE_INFO("Releasing requested data connection");
+        le_data_Release(dataRequestRef);
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -298,6 +306,12 @@ COMPONENT_INIT
     // register handler for connection state change
     le_data_AddConnectionStateHandler(ConnectionStateHandler, NULL);
 
+    le_data_RequestObjRef_t dataRequestRef = le_data_Request();
+    if (NULL == dataRequestRef)
+    {
+        LE_ERROR("Data connection requested could not be processed");
+    }
+
     // Start AVC Session
     // Register AVC handler
     avcEventHandlerRef = le_avdata_AddSessionStateHandler(AvcStatusHandler, NULL);
@@ -335,6 +349,4 @@ COMPONENT_INIT
         le_avdata_AddResourceEventHandler(ConfigEntries[i].configTreePathPtr, ConfigSettingHandler, ConfigEntries[i].resourcePathPtr);
     }
 
-
-    le_data_Request();
 }

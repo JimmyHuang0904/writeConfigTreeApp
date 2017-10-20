@@ -4,7 +4,7 @@
 #include "le_data_interface.h"
 
 #define ARRAY_SIZE 512
-
+#define AVC_POLLING_TIME_MIN 5
 /* settings*/
 
 // Name of the Config Tree you want to write to
@@ -257,7 +257,6 @@ static void ConnectionStateHandler
             intfName,
             (isConnected) ? "connected" : "not connected");
 
-
     if (!isConnected)
     {
         LE_ERROR("Data connection: not connected.");
@@ -303,7 +302,13 @@ COMPONENT_INIT
     le_sig_Block(SIGTERM);
     le_sig_SetEventHandler(SIGTERM, AppTerminationHandler);
 
-    // register handler for connection state change
+    le_result_t setPollingResult = le_avc_SetPollingTimer(AVC_POLLING_TIME_MIN);
+    if (setPollingResult == LE_OUT_OF_RANGE)
+    {
+        LE_ERROR("Polling timer is set out of range.");
+    }
+
+    // Register handler for connection state change
     le_data_AddConnectionStateHandler(ConnectionStateHandler, NULL);
 
     le_data_RequestObjRef_t dataRequestRef = le_data_Request();

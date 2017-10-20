@@ -11,11 +11,10 @@ processes:
     }
 }
 
-start: manual
-
 bindings:
 {
     writeConfigTree.writeConfigTree.le_avdata -> avcService.le_avdata
+    writeConfigTree.writeConfigTree.le_avc -> avcService.le_avc
     writeConfigTree.writeConfigTree.le_data -> dataConnectionService.le_data
     writeConfigTree.writeConfigTree.le_mdc -> modemService.le_mdc
 }
@@ -25,7 +24,7 @@ requires:
     configTree:
     {
         // Config Tree access to write to
-        [rw] writeConfigTree
         [rw] trafficLight
+        [rw] writeConfigTree
     }
 }

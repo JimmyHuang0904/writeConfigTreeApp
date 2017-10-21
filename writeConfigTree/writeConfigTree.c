@@ -4,6 +4,7 @@
 #include "le_data_interface.h"
 
 #define ARRAY_SIZE 512
+#define AVC_POLLING_TIME_MIN 1
 
 /* settings*/
 
@@ -25,6 +26,8 @@
 le_avdata_SessionStateHandlerRef_t  avcEventHandlerRef = NULL;
 // Reference to AVC Session handler
 le_avdata_RequestSessionObjRef_t sessionRef = NULL;
+// Reference to data connection
+le_data_RequestObjRef_t dataRequestRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -135,10 +138,10 @@ static void ConfigSettingHandler
     le_avdata_DataType_t dataType = LE_AVDATA_DATA_TYPE_NONE;
 
     // Data to be stored with their respective data types
-    char bufferString[ARRAY_SIZE] = "";
-    int bufferInt;
-    bool bufferBool;
-    double bufferFloat;
+    char bufferString[ARRAY_SIZE] = {0};
+    int32_t bufferInt = 0;
+    bool bufferBool = false;
+    double bufferFloat = 0;
     int i = 0;
 
     // Find the pathToDataPtr and the dataType through the contextPtr sent by the handler.
@@ -162,11 +165,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        le_result_t resultSetString = le_avdata_SetString(pathToDataPtr, bufferString);
-        if (LE_FAULT == resultSetString)
-        {
-            LE_ERROR("Error in getting latest %s", pathToDataPtr);
-        }
+
         LE_INFO("String being written is:%s", bufferString);
 
         WriteStringToConfig(bufferString, pathToDataPtr);
@@ -178,11 +177,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        le_result_t resultSetInt = le_avdata_SetInt(pathToDataPtr, bufferInt);
-        if (LE_FAULT == resultSetInt)
-        {
-            LE_ERROR("Error in getting latest %s", pathToDataPtr);
-        }
+
         LE_INFO("Int being written is:%i", bufferInt);
 
         WriteIntToConfig(bufferInt, pathToDataPtr);
@@ -194,11 +189,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        le_result_t resultSetFloat = le_avdata_SetFloat(pathToDataPtr, bufferFloat);
-        if (LE_FAULT == resultSetFloat)
-        {
-            LE_ERROR("Error in getting latest %s", pathToDataPtr);
-        }
+
         LE_INFO("Float being written is:%f", bufferFloat);
 
         WriteFloatToConfig(bufferFloat, pathToDataPtr);
@@ -210,11 +201,7 @@ static void ConfigSettingHandler
         {
             LE_ERROR("Error in getting latest %s", pathToDataPtr);
         }
-        le_result_t resultSetBool = le_avdata_SetBool(pathToDataPtr, bufferBool);
-        if (LE_FAULT == resultSetBool)
-        {
-            LE_ERROR("Error in getting latest %s", pathToDataPtr);
-        }
+
         LE_INFO("Bool being written is:%s", bufferBool ? "true" : "false");
 
         WriteBoolToConfig(bufferBool, pathToDataPtr);
@@ -247,6 +234,12 @@ static void AppTerminationHandler
         LE_INFO("Unregister the session handler");
         le_avdata_RemoveSessionStateHandler(avcEventHandlerRef);
     }
+
+    if (NULL != dataRequestRef)
+    {
+        LE_INFO("Releasing requested data connection");
+        le_data_Release(dataRequestRef);
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -264,7 +257,6 @@ static void ConnectionStateHandler
     LE_INFO("Connection State Event: '%s' %s",
             intfName,
             (isConnected) ? "connected" : "not connected");
-
 
     if (!isConnected)
     {
@@ -311,8 +303,20 @@ COMPONENT_INIT
     le_sig_Block(SIGTERM);
     le_sig_SetEventHandler(SIGTERM, AppTerminationHandler);
 
-    // register handler for connection state change
+    le_result_t setPollingResult = le_avc_SetPollingTimer(AVC_POLLING_TIME_MIN);
+    if (setPollingResult == LE_OUT_OF_RANGE)
+    {
+        LE_ERROR("Polling timer is set out of range.");
+    }
+
+    // Register handler for connection state change
     le_data_AddConnectionStateHandler(ConnectionStateHandler, NULL);
+
+    le_data_RequestObjRef_t dataRequestRef = le_data_Request();
+    if (NULL == dataRequestRef)
+    {
+        LE_ERROR("Data connection requested could not be processed");
+    }
 
     // Start AVC Session
     // Register AVC handler
@@ -351,6 +355,4 @@ COMPONENT_INIT
         le_avdata_AddResourceEventHandler(ConfigEntries[i].configTreePathPtr, ConfigSettingHandler, ConfigEntries[i].resourcePathPtr);
     }
 
-
-    le_data_Request();
 }

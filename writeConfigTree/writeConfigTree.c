@@ -4,7 +4,8 @@
 #include "le_data_interface.h"
 
 #define ARRAY_SIZE 512
-#define AVC_POLLING_TIME_MIN 5
+#define AVC_POLLING_TIME_MIN 1
+
 /* settings*/
 
 // Name of the Config Tree you want to write to

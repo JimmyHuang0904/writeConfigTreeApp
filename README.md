@@ -10,7 +10,7 @@ manage my device and change configurations over-the-air!
 
 This app was developed using:
 
-* legato version 17.07
+* [legato](https://legato.io/) version 17.07
 * WP85 release 14
 * [MangOH Green](http://mangoh.io/mangoh-green) + [IoT expansion card (for GPIO)](http://mangoh.io/documentation/iot_expansion_cards.html)
 * [AirVantage (comes with mangOH Green)](https://airvantage.net/)

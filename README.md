@@ -12,7 +12,7 @@ This app was developed using:
 
 * [legato](https://legato.io/) version 17.07
 * WP85 release 14
-* [MangOH Green](http://mangoh.io/mangoh-green) + [IoT expansion card (for GPIO)](http://mangoh.io/documentation/iot_expansion_cards.html)
+* [MangOH Green](http://mangoh.io/mangoh-green) + [IoT expansion card (for GPIO)](https://mangoh.io/iot-card-resources)
 * [AirVantage (comes with mangOH Green)](https://airvantage.net/)
 * SIM card
 
